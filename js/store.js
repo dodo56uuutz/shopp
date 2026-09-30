@@ -1,160 +1,76 @@
-import { db } from "./config.js";
-import {
-  ref, onValue, push, set
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+const api = {
+  async request(path, options) {
+    const response = await fetch(path, { ...options, headers: { "Content-Type": "application/json", ...(options?.headers || {}) } });
+    if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "Request failed");
+    return response.status === 204 ? null : response.json();
+  },
+  products: () => api.request("/api/products"),
+  order: (data) => api.request("/api/orders", { method: "POST", body: JSON.stringify(data) }),
+  messages: (id) => api.request(`/api/messages/${encodeURIComponent(id)}`),
+  sendMessage: (id, body) => api.request(`/api/messages/${encodeURIComponent(id)}`, { method: "POST", body: JSON.stringify({ body }) }),
+};
 
-/* ---------- Cart (localStorage) ---------- */
+const escapeHtml = (value) => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 let cart = JSON.parse(localStorage.getItem("cart") || "[]");
+let products = [];
 
-function saveCart(){
-  localStorage.setItem("cart", JSON.stringify(cart));
-  renderCart();
+function notify(message, error = false) {
+  const toast = document.getElementById("toast");
+  toast.textContent = message; toast.className = `toast show${error ? " error" : ""}`;
+  clearTimeout(notify.timer); notify.timer = setTimeout(() => { toast.className = "toast"; }, 2800);
 }
 
-function addToCart(product){
-  const existing = cart.find(i => i.id === product.id);
-  if(existing) existing.qty++;
-  else cart.push({ ...product, qty: 1 });
-  saveCart();
-  document.getElementById("cart-panel").classList.add("open");
+function saveCart() { localStorage.setItem("cart", JSON.stringify(cart)); renderCart(); }
+function addToCart(product) {
+  const existing = cart.find(item => item.id === product.id);
+  if (existing) existing.qty += 1; else cart.push({ ...product, qty: 1 });
+  saveCart(); document.getElementById("cart-panel").classList.add("open");
 }
 
-function removeFromCart(id){
-  cart = cart.filter(i => i.id !== id);
-  saveCart();
-}
-
-function renderCart(){
+function renderCart() {
   const box = document.getElementById("cart-items");
-  const count = document.getElementById("cart-count");
-  const total = document.getElementById("cart-total");
-
-  count.textContent = cart.reduce((s, i) => s + i.qty, 0);
-
-  if(cart.length === 0){
-    box.innerHTML = '<p class="empty">Your cart is empty</p>';
-    total.textContent = "0";
-    return;
-  }
-
-  box.innerHTML = cart.map(i => `
-    <div class="cart-item">
-      <img src="${i.image || 'https://via.placeholder.com/60'}" alt="${i.name}">
-      <div class="cart-item-info">
-        <div>${i.name} × ${i.qty}</div>
-        <div class="price">${(i.price * i.qty).toFixed(2)} MAD</div>
-      </div>
-      <button class="remove-item" data-id="${i.id}">🗑</button>
-    </div>`).join("");
-
-  box.querySelectorAll(".remove-item").forEach(btn => {
-    btn.onclick = () => removeFromCart(btn.dataset.id);
-  });
-
-  total.textContent = cart.reduce((s, i) => s + i.price * i.qty, 0).toFixed(2);
+  document.getElementById("cart-count").textContent = cart.reduce((sum, item) => sum + item.qty, 0);
+  document.getElementById("cart-total").textContent = cart.reduce((sum, item) => sum + item.price * item.qty, 0).toFixed(2);
+  if (!cart.length) { box.innerHTML = '<p class="empty">Your cart is empty</p>'; return; }
+  box.innerHTML = cart.map(item => `<div class="cart-item"><img src="${escapeHtml(item.image || "https://placehold.co/60x60?text=Item")}" alt="${escapeHtml(item.name)}"><div class="cart-item-info"><div>${escapeHtml(item.name)} × ${item.qty}</div><div class="price">${(item.price * item.qty).toFixed(2)} MAD</div></div><button class="remove-item" data-id="${item.id}" aria-label="Remove ${escapeHtml(item.name)}">🗑</button></div>`).join("");
+  box.querySelectorAll(".remove-item").forEach(button => { button.onclick = () => { cart = cart.filter(item => String(item.id) !== button.dataset.id); saveCart(); }; });
 }
 
-/* ---------- Products ---------- */
-function renderProducts(products){
+function renderProducts() {
   const grid = document.getElementById("products-grid");
-  const list = Object.entries(products);
-
-  if(list.length === 0){
-    grid.innerHTML = '<p class="empty">No products yet. Add some from the Admin Panel.</p>';
-    return;
-  }
-
-  grid.innerHTML = list.map(([id, p]) => `
-    <div class="product-card">
-      <img src="${p.image || 'https://via.placeholder.com/230x200'}" alt="${p.name}">
-      <div class="product-info">
-        <h3>${p.name}</h3>
-        <p class="price">${p.price} MAD</p>
-        <button class="add-btn" data-id="${id}">Add to Cart</button>
-      </div>
-    </div>`).join("");
-
-  grid.querySelectorAll(".add-btn").forEach(btn => {
-    btn.onclick = () => {
-      const p = products[btn.dataset.id];
-      addToCart({ id: btn.dataset.id, name: p.name, price: +p.price, image: p.image });
-    };
-  });
+  if (!products.length) { grid.innerHTML = '<p class="status-message">No products are available yet.</p>'; return; }
+  grid.innerHTML = products.map(product => `<article class="product-card"><img src="${escapeHtml(product.image || "https://placehold.co/460x400?text=Product")}" alt="${escapeHtml(product.name)}" loading="lazy"><div class="product-info"><h3>${escapeHtml(product.name)}</h3><p>${escapeHtml(product.description || "")}</p><p class="price">${Number(product.price).toFixed(2)} MAD</p><button class="add-btn" data-id="${product.id}">Add to Cart</button></div></article>`).join("");
+  grid.querySelectorAll(".add-btn").forEach(button => { button.onclick = () => { const p = products.find(item => String(item.id) === button.dataset.id); addToCart({ id: p.id, name: p.name, price: Number(p.price), image: p.image }); }; });
 }
 
-/* ---------- Checkout ---------- */
-function checkout(){
-  if(cart.length === 0) return alert("Your cart is empty!");
-
-  const name = prompt("Your name:");
-  if(!name) return;
-  const phone = prompt("Your phone number:");
-  if(!phone) return;
-
-  const orderRef = push(ref(db, "orders"));
-  set(orderRef, {
-    customer: name,
-    phone,
-    items: cart,
-    total: cart.reduce((s, i) => s + i.price * i.qty, 0).toFixed(2),
-    status: "new",
-    ts: Date.now()
-  });
-
-  alert("Order placed successfully! We will contact you soon.");
-  cart = [];
-  saveCart();
-  document.getElementById("cart-panel").classList.remove("open");
+async function checkout() {
+  if (!cart.length) return notify("Your cart is empty", true);
+  const customer = prompt("Your name:")?.trim(); if (!customer) return;
+  const phone = prompt("Your phone number:")?.trim(); if (!phone) return;
+  try { await api.order({ customer, phone, items: cart }); cart = []; saveCart(); document.getElementById("cart-panel").classList.remove("open"); notify("Order placed successfully!"); }
+  catch { notify("Could not place the order. Please try again.", true); }
 }
 
-/* ---------- Chat ---------- */
-function initChat(){
-  const toggle = document.getElementById("chat-toggle");
-  const win = document.getElementById("chat-window");
-  const close = document.getElementById("chat-close");
-  const send = document.getElementById("chat-send");
-  const input = document.getElementById("chat-input");
-
-  toggle.onclick = () => win.classList.toggle("open");
-  close.onclick = () => win.classList.remove("open");
-
+function initChat() {
+  const win = document.getElementById("chat-window"); const input = document.getElementById("chat-input"); const box = document.getElementById("chat-messages");
   let visitorId = localStorage.getItem("visitorId");
-  if(!visitorId){
-    visitorId = "v_" + Math.random().toString(36).slice(2, 10);
-    localStorage.setItem("visitorId", visitorId);
-  }
-
-  const msgsRef = ref(db, "chats/" + visitorId + "/messages");
-  onValue(msgsRef, snap => {
-    const box = document.getElementById("chat-messages");
-    const data = snap.val() || {};
-    box.innerHTML = Object.values(data).map(m =>
-      `<div class="chat-msg ${m.from === 'visitor' ? 'me' : 'other'}">${m.text}</div>`
-    ).join("");
-    box.scrollTop = box.scrollHeight;
-  });
-
-  function sendMsg(){
-    const text = input.value.trim();
-    if(!text) return;
-    push(msgsRef, { from: "visitor", text, ts: Date.now() });
-    input.value = "";
-  }
-
-  send.onclick = sendMsg;
-  input.addEventListener("keydown", e => { if(e.key === "Enter") sendMsg(); });
+  if (!visitorId) { visitorId = `v_${crypto.randomUUID().replaceAll("-", "").slice(0, 16)}`; localStorage.setItem("visitorId", visitorId); }
+  const load = async () => {
+    if (!win.classList.contains("open")) return;
+    try { const rows = await api.messages(visitorId); box.innerHTML = rows.map(message => `<div class="chat-msg ${message.sender === "visitor" ? "me" : "other"}">${escapeHtml(message.body)}</div>`).join(""); box.scrollTop = box.scrollHeight; }
+    catch { box.innerHTML = '<p class="empty">Chat is temporarily unavailable.</p>'; }
+  };
+  document.getElementById("chat-toggle").onclick = () => { win.classList.toggle("open"); load(); };
+  document.getElementById("chat-close").onclick = () => win.classList.remove("open");
+  const send = async () => { const body = input.value.trim(); if (!body) return; input.value = ""; try { await api.sendMessage(visitorId, body); await load(); } catch { notify("Message was not sent", true); } };
+  document.getElementById("chat-send").onclick = send;
+  input.addEventListener("keydown", event => { if (event.key === "Enter") send(); }); setInterval(load, 8000);
 }
 
-/* ---------- Init ---------- */
-document.addEventListener("DOMContentLoaded", () => {
-  renderCart();
-  initChat();
-
-  document.getElementById("cart-btn").onclick = () =>
-    document.getElementById("cart-panel").classList.add("open");
-  document.getElementById("cart-close").onclick = () =>
-    document.getElementById("cart-panel").classList.remove("open");
+document.addEventListener("DOMContentLoaded", async () => {
+  renderCart(); initChat();
+  document.getElementById("cart-btn").onclick = () => document.getElementById("cart-panel").classList.add("open");
+  document.getElementById("cart-close").onclick = () => document.getElementById("cart-panel").classList.remove("open");
   document.getElementById("checkout-btn").onclick = checkout;
-
-  onValue(ref(db, "products"), snap => renderProducts(snap.val() || {}));
+  try { products = await api.products(); renderProducts(); } catch { document.getElementById("products-grid").innerHTML = '<p class="status-message">Products could not be loaded. Please try again.</p>'; }
 });
