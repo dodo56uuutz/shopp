@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MyShop | Online Store</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- Header -->
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="#" class="logo">🛍️ MyShop</a>
+    <nav class="nav">
+      <a href="#products">Products</a>
+      <a href="#about">About</a>
+      <a href="admin.html">Admin Panel</a>
+    </nav>
+    <button id="cart-btn" class="cart-btn">
+      🛒 Cart <span id="cart-count">0</span>
+    </button>
+  </div>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container">
+    <h1>Best Products, Best Prices</h1>
+    <p>Fast delivery to all cities — Cash on delivery</p>
+    <a href="#products" class="btn-primary">Shop Now</a>
+  </div>
+</section>
+
+<!-- Products -->
+<section id="products" class="products-section">
+  <div class="container">
+    <h2 class="section-title">Our Products</h2>
+    <div id="products-grid" class="products-grid">
+      <div class="product-skeleton" aria-hidden="true"></div>
+      <div class="product-skeleton" aria-hidden="true"></div>
+      <div class="product-skeleton" aria-hidden="true"></div>
+      <div class="product-skeleton" aria-hidden="true"></div>
+    </div>
+  </div>
+</section>
+
+<!-- About -->
+<section id="about" class="about">
+  <div class="container">
+    <h2 class="section-title">About Us</h2>
+    <p>A trusted online store offering original products with high quality and fair prices.</p>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="site-footer">
+  <div class="container">
+    <p>© 2026 MyShop — All rights reserved</p>
+  </div>
+</footer>
+
+<!-- Floating chat button -->
+<button id="chat-toggle" class="chat-toggle" aria-label="Open live support">💬</button>
+
+<!-- Chat window -->
+<div id="chat-window" class="chat-window">
+  <div class="chat-head">
+    <span>Live Support</span>
+    <button id="chat-close" aria-label="Close chat">✕</button>
+  </div>
+  <div id="chat-messages" class="chat-messages"></div>
+  <div class="chat-input">
+    <input type="text" id="chat-input" placeholder="Type a message...">
+    <button id="chat-send" aria-label="Send message">➤</button>
+  </div>
+</div>
+
+<!-- Cart panel -->
+<div id="cart-panel" class="cart-panel">
+  <div class="cart-head">
+    <span>🛒 Shopping Cart</span>
+    <button id="cart-close" aria-label="Close cart">✕</button>
+  </div>
+  <div id="cart-items" class="cart-items"></div>
+  <div class="cart-footer">
+    <strong>Total: <span id="cart-total">0</span> MAD</strong>
+    <button id="checkout-btn" class="btn-primary">Checkout</button>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script type="module" src="js/store.js"></script>
+</body>
+</html>
